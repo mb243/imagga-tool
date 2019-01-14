@@ -1,6 +1,6 @@
 # imagga-tool
 
-`imagga-tool` is a Python script that makes use of the [Imagga image tagging service](https://imagga.com). 
+`imagga-tool` is a Python script that makes use of the [Imagga image tagging service](https://imagga.com/solutions/auto-tagging.html). 
 
 This script, in combination with an Imagga API key, will allow you to easily submit images to Imagga and apply the resulting tags as IPTC keywords. This script only supports one image at a time. If you want to do a batch of images, simply set up a `for` loop to iterate over each one. 
 
