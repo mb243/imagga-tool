@@ -26,6 +26,11 @@ def parse_arguments():
         help="Input file", 
         required=True
         )
+    parser.add_argument(
+        "-O", "--overwrite",
+        help="Overwrite images in-place when calling exiftool",
+        action="store_true"
+    )
     args = parser.parse_args()
     return args
 
@@ -93,7 +98,7 @@ def count_tags(json_tags):
     print()
     return l
 
-def update_tags(image, tags):
+def update_tags(image, tags, overwrite=False):
     """
     Updates the image, writing the tags to it. 
     NOTE: I haven't been able to find a stable, working python3 library to handle
@@ -113,6 +118,8 @@ def update_tags(image, tags):
         t = t + " -keywords=\"" + tags[i]["tag"][api_language] + "\""
     print()
     print("- Writing new tags...")
+    if overwrite:
+        t = t + " -overwrite_original"
     out = subprocess.getoutput("exiftool " + image + t)
     print(out)
     
@@ -126,7 +133,7 @@ def main():
     t = get_tags(image_id)
     count_tags(t)
     delete_image(image_id)
-    update_tags(args.image, t)
+    update_tags(args.image, t, args.overwrite)
 
 if __name__ == '__main__':
     main()
