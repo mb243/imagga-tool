@@ -4,6 +4,7 @@ import requests
 import argparse
 import json
 import subprocess
+import shlex
 
 ## https://docs.imagga.com/?python
 api_key = ''
@@ -22,8 +23,8 @@ def parse_arguments():
     """
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "-i", "--image", 
-        help="Input file", 
+        "-i", "--image",
+        help="Input file",
         required=True
         )
     parser.add_argument(
@@ -47,7 +48,7 @@ def fix_json(j):
     jd = json.dumps(j)
     jl = json.loads(jd)
     return jl
-    
+
 def post_image(image):
     """
     Post the image to Imagga
@@ -64,7 +65,7 @@ def post_image(image):
 
 def delete_image(image_id):
     """
-    Delete the image. Not really needed because Imagga deletes 
+    Delete the image. Not really needed because Imagga deletes
     everything you upload after 24 hours, but still a nice-to-do
     """
     print('- Deleting image_id: {image_id}'.format(
@@ -92,15 +93,15 @@ def count_tags(json_tags):
     print("- Counted tags: {tags}".format(
         tags=l
     ))
-    print("- Detected tags: ", end='')
-    for i in range(l):
-        print(json_tags[i]["tag"][api_language], end=', ')
-    print()
+    #print("- Detected tags: ", end='')
+    #for i in range(l):
+    #    print(json_tags[i]["tag"][api_language], end=', ')
+    #print()
     return l
 
 def update_tags(image, tags, overwrite=False):
     """
-    Updates the image, writing the tags to it. 
+    Updates the image, writing the tags to it.
     NOTE: I haven't been able to find a stable, working python3 library to handle
     EXIF/IPTC keyword writing. For this reason, this uses 'exiftool' to handle keywords
     PRs are welcome to change this behavior.
@@ -109,20 +110,22 @@ def update_tags(image, tags, overwrite=False):
     print("Preparing to update tags for image: {}".format(
         image
     ))
-    out = subprocess.getoutput("exiftool " + image + " -keywords")
+    out = subprocess.getoutput("exiftool " + " -keywords " + shlex.quote(image))
     print("Existing keywords:")
     print(out)
     print("- Assembling new list of keywords... ", end='')
     for i in range(len(tags)):
         print(tags[i]["tag"][api_language], end=', ')
-        t = t + " -keywords=\"" + tags[i]["tag"][api_language] + "\""
+        t = t + " -keywords='" + tags[i]["tag"][api_language] + "'"
     print()
     print("- Writing new tags...")
     if overwrite:
         t = t + " -overwrite_original"
-    out = subprocess.getoutput("exiftool " + image + t)
+    # use shlex to escape special characters
+    c = "exiftool " + t + " " + shlex.quote(image)
+    out = subprocess.getoutput(c)
     print(out)
-    
+
 def main():
     args = parse_arguments()
     result = post_image(args.image)
