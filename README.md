@@ -23,3 +23,24 @@ api_endpoint_colors = api_endpoint + '/colors'
 api_threshold = 20
 api_language = "en"
 ```
+
+This requires that `exiftool` be available on your path, as it calls `exiftool` to update the IPTC tags. 
+
+Example run and output below:
+
+```
+Posting image: IMG_3312.JPG
+- Uploaded image ID: (omitted)
+- Counted tags: 29
+- Deleting image_id: (omitted)
+Preparing to update tags for image: IMG_3312.JPG
+Existing keywords:
+
+- Assembling new list of keywords... tree, woody plant, forest, autumn, trees, vascular plant, landscape, park, fall, leaves, road, southern beech, woods, foliage, path, leaf, scenic, scenery, plant, grass, season, outdoors, peaceful, yellow, rural, wood, scene, outdoor, countryside, 
+- Writing new tags...
+    1 image files updated
+```
+```
+$ exiftool -keywords IMG_3312.JPG
+Keywords                        : tree, woody plant, forest, autumn, trees, vascular plant, landscape, park, fall, leaves, road, southern beech, woods, foliage, path, leaf, scenic, scenery, plant, grass, season, outdoors, peaceful, yellow, rural, wood, scene, outdoor, countryside
+```
