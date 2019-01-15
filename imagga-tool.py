@@ -7,15 +7,79 @@ import subprocess
 import shlex
 
 ## https://docs.imagga.com/?python
-api_key = ''
-api_secret = ''
-api_endpoint = 'https://api.imagga.com/v2'
-api_endpoint_uploads = api_endpoint + '/uploads'
-api_endpoint_tags = api_endpoint + '/tags'
-api_endpoint_colors = api_endpoint + '/colors'
-api_threshold = 20
-api_language = "en"
-##
+
+# api_endpoint_colors = api_endpoint + '/colors'
+
+class ImaggaAPI:
+    def __init__(self):
+        self.api_key = ''
+        self.api_secret = ''
+        # https://docs.imagga.com/?python#tags
+        self.threshold = 20
+        self.language = "en"
+        self.auth = (self.api_key, self.api_secret)
+
+    def _fix_json(self, j):
+        """
+        Helper function to address Json with single quotes.
+        json: an malformed json string
+
+        returns a proper json object
+        """
+        j_dumped = json.dumps(j)
+        j_loaded = json.loads(j_dumped)
+        return j_loaded
+
+    def getTags(self, imageId):
+        """
+        Get list of tags using the Imagga API
+
+        imageId: upload_image_id that you want tags from
+
+        returns: list of tags as a json object
+        """
+        url = "https://api.imagga.com/v2/tags"
+        payload = {
+            "image_upload_id" : imageId,
+            "threshold" : self.threshold,
+            "language"  : self.language
+        }
+        r = requests.get(url, params=payload, auth=self.auth)
+        result = r.json()
+        return self._fix_json(result["result"]["tags"])  
+
+    def postFile(self, file):
+        """
+        Post the image to Imagga
+
+        file: file to post
+
+        returns the entire json result as a json object
+        """
+        url = "https://api.imagga.com/v2/uploads"
+        r = requests.post(url,
+            auth=self.auth,
+            files={'image': open(file, 'rb')}
+            )
+        result = r.json()
+        return self._fix_json(result)
+
+    def deleteImage(self, image_id):
+        """
+        Imagga deletes all uploads after 24 hours, so this is optional, but nice.
+
+        image_id: The upload_image_id to delete
+
+        returns: the status code
+        """
+        url = "https://api.imagga.com/v2/uploads/" + image_id
+        r = requests.delete(url,
+            auth=self.auth,
+        )
+        if r.status_code == 200:
+            return "success"
+        else:
+            return "failed"
 
 def parse_arguments():
     """
@@ -23,13 +87,23 @@ def parse_arguments():
     """
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "-i", "--image",
+        "file",
         help="Input file",
-        required=True
         )
     parser.add_argument(
-        "-O", "--overwrite",
+        "--overwrite-file",
         help="Overwrite images in-place when calling exiftool",
+        action="store_true"
+    )
+    parser.add_argument(
+        "--append-tags",
+        help="Append (add) keywords instead of replacing",
+        action="store_true"
+    )
+    parser.add_argument(
+        "--skip-if-tagged",
+        dest="skipIfTagged",
+        help="Skip file if it has any existing tags",
         action="store_true"
     )
     args = parser.parse_args()
@@ -37,106 +111,80 @@ def parse_arguments():
 
 def get_result_upload_id(result):
     """
-    Get the upload_id from the results json
+    Helper function to get the upload_id from the results json
     """
     return result["result"]["upload_id"]
 
-def fix_json(j):
-    """
-    Workaround function to address Imagga sending back Json with single quotes
-    """
-    jd = json.dumps(j)
-    jl = json.loads(jd)
-    return jl
+def CountJsonTags(json_tags):
+    return len(json_tags)
 
-def post_image(image):
-    """
-    Post the image to Imagga
-    """
-    print("Posting image: {image}".format(
-        image=image
-    ))
-    r = requests.post(api_endpoint_uploads,
-        auth=(api_key, api_secret),
-        files={'image': open(image, 'rb')}
-        )
-    result = r.json()
-    return fix_json(result)
+def sh(command):
+    return subprocess.getoutput(command)
 
-def delete_image(image_id):
-    """
-    Delete the image. Not really needed because Imagga deletes
-    everything you upload after 24 hours, but still a nice-to-do
-    """
-    print('- Deleting image_id: {image_id}'.format(
-        image_id=image_id
-    ))
-    url = api_endpoint_uploads + '/' + image_id
-    r = requests.delete(url,
-        auth=(api_key, api_secret),
-    )
-    return r.status_code
+def FileHasTags(file):
+    o = sh("exiftool -keywords {}".format(shlex.quote(file)))
+    if o:
+        return True
+    else:
+        return False
 
-def get_tags(image_id):
-    url = api_endpoint_tags
-    payload = {
-        "image_upload_id" : image_id,
-        "threshold" : api_threshold,
-        "language"  : api_language
-    }
-    r = requests.get(url, params=payload, auth=(api_key, api_secret))
-    result = r.json()
-    return fix_json(result["result"]["tags"])
-
-def count_tags(json_tags):
-    l = len(json_tags)
-    print("- Counted tags: {tags}".format(
-        tags=l
-    ))
-    #print("- Detected tags: ", end='')
-    #for i in range(l):
-    #    print(json_tags[i]["tag"][api_language], end=', ')
-    #print()
-    return l
-
-def update_tags(image, tags, overwrite=False):
-    """
-    Updates the image, writing the tags to it.
-    NOTE: I haven't been able to find a stable, working python3 library to handle
-    EXIF/IPTC keyword writing. For this reason, this uses 'exiftool' to handle keywords
-    PRs are welcome to change this behavior.
-    """
+def WriteFileTags(file, tags, language, append=False, overwriteFile=False):
     t = ""
-    print("Preparing to update tags for image: {}".format(
-        image
-    ))
-    out = subprocess.getoutput("exiftool " + " -keywords " + shlex.quote(image))
-    print("Existing keywords:")
-    print(out)
-    print("- Assembling new list of keywords... ", end='')
     for i in range(len(tags)):
-        print(tags[i]["tag"][api_language], end=', ')
-        t = t + " -keywords='" + tags[i]["tag"][api_language] + "'"
-    print()
-    print("- Writing new tags...")
-    if overwrite:
+        if append:
+            t = t + " -keywords+='" + tags[i]["tag"][language] + "'"
+        else:
+            t = t + " -keywords='" + tags[i]["tag"][language] + "'"
+    if overwriteFile:
         t = t + " -overwrite_original"
     # use shlex to escape special characters
-    c = "exiftool " + t + " " + shlex.quote(image)
-    out = subprocess.getoutput(c)
-    print(out)
+    c = "exiftool {tag} {file}".format(
+        tag=t,
+        file=shlex.quote(file),
+    )
+    return sh(c)
 
 def main():
+    i = ImaggaAPI()
+
     args = parse_arguments()
-    result = post_image(args.image)
-    image_id = get_result_upload_id(result)
-    print("- Uploaded image ID: {image_id}".format(
-        image_id = image_id
-    ))
-    t = get_tags(image_id)
-    count_tags(t)
-    delete_image(image_id)
-    update_tags(args.image, t, args.overwrite)
+    file = args.file
+
+    print("Checking for existing tags: ", end='')
+    hasTags = FileHasTags(file)
+    if hasTags:
+        print("has tags")
+    else:
+        print("does not have tags")
+
+    if not (hasTags and args.skipIfTagged):
+        print("Posting file: {} ... ".format(file), end='')
+        result = i.postFile(file)
+        id = get_result_upload_id(result)
+        print('{result}: {id}'.format(
+            result=result["status"]["type"],
+            id=id,
+            ))
+
+        print("Getting tags for upload file ... ", end="")
+        tags = i.getTags(id)
+        c = CountJsonTags(tags)
+        print("{tags} tags retrieved.".format(
+            tags=c
+        ))
+        
+        print("Deleting uploaded image ... ", end='')
+        result = i.deleteImage(id)
+        print(result)
+
+        print("Writing new file tags ... ", end='')
+        s = WriteFileTags(file, tags, i.language)
+        if s:
+            print("success")
+        else:
+            print("failed")
+    else:
+        print("Skipping file as it has tags already.")
 
 if __name__ == '__main__':
     main()
