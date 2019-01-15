@@ -34,7 +34,7 @@ class ImaggaAPI:
         """
         Get list of tags using the Imagga API
 
-        imageId: upload_image_id that you want tags from
+        imageId: image_upload_id that you want tags from
 
         returns: list of tags as a json object
         """
@@ -47,6 +47,22 @@ class ImaggaAPI:
         r = requests.get(url, params=payload, auth=self.auth)
         result = r.json()
         return self._fix_json(result["result"]["tags"])  
+
+    def getColors(self, imageId):
+        """
+        Get list of identified colors using the Imagga API
+
+        imageID: The image_upload_id
+
+        returns: ??? lol (I have no clue how this works)
+        """
+        url = "https://api.imagga.com/v2/colors"
+        payload = {
+            "image_upload_id" : imageId
+        }
+        r = requests.get(url, params=payload, auth=self.auth)
+        result = r.json()
+        return self._fix_json(result["result"]["colors"])  
 
     def postFile(self, file):
         """
@@ -128,6 +144,7 @@ def FileHasTags(file):
     else:
         return False
 
+# def WriteFileTags(file, tags, colors, language, append=False, overwriteFile=False):
 def WriteFileTags(file, tags, language, append=False, overwriteFile=False):
     t = ""
     for i in range(len(tags)):
@@ -135,6 +152,12 @@ def WriteFileTags(file, tags, language, append=False, overwriteFile=False):
             t = t + " -keywords+='" + tags[i]["tag"][language] + "'"
         else:
             t = t + " -keywords='" + tags[i]["tag"][language] + "'"
+    # for z in ["foreground_colors", "image_colors", "background_colors"]:
+    #     for l in range(len(colors[z])):
+    #         if append:
+    #             t = t + " -keywords+='" + colors[z][l]["closest_palette_color"] + "'"
+    #         else:
+    #             t = t + " -keywords='" + colors[z][l]["closest_palette_color"] + "'"
     if overwriteFile:
         t = t + " -overwrite_original"
     # use shlex to escape special characters
@@ -166,12 +189,19 @@ def main():
             id=id,
             ))
 
-        print("Getting tags for upload file ... ", end="")
+        print("Getting tags for uploaded file ... ", end="")
         tags = i.getTags(id)
         c = CountJsonTags(tags)
         print("{tags} tags retrieved.".format(
             tags=c
         ))
+
+        # print("Getting colors for uploaded file ... ", end="")
+        # colors = i.getColors(id)
+        # c = len(colors["background_colors"]) + len(colors["image_colors"]) + len(colors["foreground_colors"])
+        # print("{colors} colors retrieved.".format(
+        #     colors = c
+        # ))
         
         print("Deleting uploaded image ... ", end='')
         result = i.deleteImage(id)
@@ -179,6 +209,7 @@ def main():
 
         print("Writing new file tags ... ", end='')
         s = WriteFileTags(file, tags, i.language)
+        #s = WriteFileTags(file, tags, colors, i.language)
         if s:
             print("success")
         else:
