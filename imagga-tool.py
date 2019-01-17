@@ -54,7 +54,7 @@ class ImaggaAPI:
 
         imageID: The image_upload_id
 
-        returns: ??? lol (I have no clue how this works)
+        returns: list of colors
         """
         url = "https://api.imagga.com/v2/colors"
         payload = {
